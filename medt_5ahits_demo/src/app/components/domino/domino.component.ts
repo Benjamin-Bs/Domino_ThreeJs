@@ -1,5 +1,6 @@
 import { AfterViewInit, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import Ammo from 'ammo.js';
 
 @Component({
   selector: 'app-domino',
@@ -14,12 +15,20 @@ export class DominoComponent implements OnInit, AfterViewInit {
   camera!: PerspectiveCamera;
   renderer!: WebGLRenderer;
 
+
+
   constructor() { }
 
-  ngOnInit() { }
+  ngOnInit() {
+
+  }
 
   ngAfterViewInit(): void {
-    this.initScene();
+    Ammo().then((AmmoLib: any) => {
+      this.initPhysics(AmmoLib);
+      this.initScene();
+      this.animate();
+    });
   }
 
   private initScene(): void {
@@ -29,8 +38,17 @@ export class DominoComponent implements OnInit, AfterViewInit {
     this.renderer = new WebGLRenderer({ canvas: this.canvas.nativeElement, antialias: true })
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
+
+
+  }
+
+  animate() {
+
   }
 
 
-  
+  initPhysics(Ammo: any) {
+
+  }
+
 }
