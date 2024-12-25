@@ -50,7 +50,6 @@ Before running the project, ensure you have the following installed:
 
 - 📁 **src/app/**: Core Angular components and logic.  
 - 📁 **src/assets/**: Static resources, including 3D models and textures.  
-- 📁 **src/services/**: Utility and service functions.  
 - 🧩 **threejs/**: Three.js configuration and scene setup.  
 
 ---
