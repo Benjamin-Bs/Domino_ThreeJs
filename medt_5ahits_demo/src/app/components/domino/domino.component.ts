@@ -2,8 +2,7 @@ import { AfterViewInit, Component, ElementRef, OnInit, ViewChild } from '@angula
 import { PerspectiveCamera, Scene, WebGLRenderer, Mesh, BoxGeometry, AmbientLight, DirectionalLight, MeshStandardMaterial } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as CANNON from 'cannon-es';
-// import Ammo from 'ammo.js';
-// import { GLTFLoader } from 'three-stdlib';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 
 @Component({
@@ -19,19 +18,18 @@ export class DominoComponent implements OnInit, AfterViewInit {
   camera!: PerspectiveCamera;
   renderer!: WebGLRenderer;
   world!: CANNON.World;
-  rigidBodies: any[] = [];
-  shadowCube!: Mesh;
-
+  rigidBodies: { mesh: Mesh; body: CANNON.Body }[] = [];
 
   constructor() { }
 
   ngOnInit() { }
 
   ngAfterViewInit(): void {
-    this.initPhysics();
     this.initScene();
+    this.initPhysics();
     this.loadModel();
   }
+
 
   private initScene(): void {
     this.scene = new Scene();
@@ -42,122 +40,146 @@ export class DominoComponent implements OnInit, AfterViewInit {
     this.renderer.shadowMap.enabled = true;
 
     // Licht hinzufügen
-    const light = new AmbientLight(0xffffff, 1); // Ambient light
+    const light = new AmbientLight(0xffffff, 0.8); // Umgebungslicht
     this.scene.add(light);
 
-    const shadowGeometry = new BoxGeometry(1, 1, 1,);
-    const shadowMaterial = new MeshStandardMaterial({
-      color: 0xffffff
-    });
-
-    this.shadowCube = new Mesh(shadowGeometry, shadowMaterial);
-    this.scene.add(this.shadowCube);
-
-    this.shadowCube.position.set(1, 10, 1);
-
-    // Shadow cube lighting
-    this.shadowCube.castShadow = true;
-
-
-    const directionalLight = new DirectionalLight(0xffffff, 1);  // Spotlight
-    directionalLight.position.set(5, 5, 5);
+    const directionalLight = new DirectionalLight(0xffffff, 0.8); // Richtungslicht
+    directionalLight.position.set(5, 10, 5);
+    directionalLight.castShadow = true;
     this.scene.add(directionalLight);
+
+    // OrbitControls
+    const controls = new OrbitControls(this.camera, this.renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2;
+    controls.minDistance = 5;
+    controls.maxDistance = 50;
+
+    // Kamera-Position
+    this.camera.position.set(8, 8, 15);
+    this.camera.lookAt(0, 0, 0);
 
     // Animation Loop
     this.renderer.setAnimationLoop(() => {
+      controls.update();
       this.animate();
     });
-
   }
 
+
   animate() {
-    this.world.step(1 / 60);  // Physik-Update mit einer festen Schrittweite
+    this.world.step(1 / 60); // Physik-Update
 
     this.rigidBodies.forEach(({ mesh, body }) => {
-      if (mesh && body) {  // Überprüfe, ob 'mesh' und 'body' definiert sind
-        if (body.position) {
-          mesh.position.copy(body.position);  // Position synchronisieren
-        }
-        if (body.rotation) {
-          mesh.rotation.setFromQuaternion(body.rotation);  // Rotation synchronisieren
-        }
-      }
+      mesh.position.copy(body.position as any); // Position synchronisieren
+      mesh.quaternion.copy(body.quaternion as any); // Rotation synchronisieren
     });
 
     this.renderer.render(this.scene, this.camera);
-    requestAnimationFrame(this.animate.bind(this));
   }
 
 
   initPhysics() {
     this.world = new CANNON.World();
-    this.world.gravity.set(0, -9.8, 0);  // Schwerkraft
+    this.world.gravity.set(0, -9.8, 0); // Schwerkraft
 
-    // Physik-Materialien und -Eigenschaften
-    const material = new CANNON.Material();
-    const contactMaterial = new CANNON.ContactMaterial(material, material, {
-      friction: 0.4,
-      restitution: 0.3,
+    const defaultMaterial = new CANNON.Material();
+    const contactMaterial = new CANNON.ContactMaterial(defaultMaterial, defaultMaterial, {
+      friction: 0.5,  // Höhere Reibung für Stabilität
+      restitution: 0.2, // Weniger "Springen"
     });
     this.world.addContactMaterial(contactMaterial);
 
-    // Boden hinzufügen
-    this.addGround();
+    this.addGround(defaultMaterial);
   }
 
-  addGround() {
-    const groundShape = new CANNON.Plane(); // Boden als plane
+  addGround(material: CANNON.Material) {
+
+    if (!this.scene) {
+      console.error('Scene is not initialized');
+      return;
+    }
+
+    const groundShape = new CANNON.Plane();
     const groundBody = new CANNON.Body({
-      mass: 0,  // Boden ist statisch
-      position: new CANNON.Vec3(0, -1, 0),
-      material: new CANNON.Material(),
+      mass: 0,
+      material: material,
     });
     groundBody.addShape(groundShape);
+    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // Ebene horizontal drehen
+    groundBody.position.set(0, -1, 0);
     this.world.addBody(groundBody);
+
+    const groundMesh = new Mesh(
+      new BoxGeometry(50, 1, 50),
+      new MeshStandardMaterial({ color: 0x808080 })
+    );
+
+    groundMesh.position.set(0, -1, 0);
+    this.scene.add(groundMesh);
+
   }
+
 
   loadModel() {
     const loader = new GLTFLoader();
     loader.load(
-      'assets/Blender/domino.gltf',
+      'assets/Blender/domino_stone.gltf',
       (gltf) => {
-        const domino = gltf.scene;
-        domino.traverse((child) => {
-          if (child instanceof Mesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
-        });
+        const domino = gltf.scene.children[0] as Mesh; // Erster Stein
+        domino.castShadow = true;
+        domino.receiveShadow = true;
 
-        domino.position.set(0, 2, 0);
-        this.scene.add(domino);
-        this.addPhysicsToModel(domino);  // Physik hinzufügen
-        this.camera.position.set(0, 3, 5);  // Kamera positionieren
-        this.camera.lookAt(domino.position); // Kamera ausrichten
+        // Steine nacheinander platzieren
+        const offset = 2.0; // Abstand zwischen den Steinen
+        for (let i = 0; i < 10; i++) {
+          const clone = domino.clone() as Mesh;
+
+          // Positionierung der Steine
+          clone.position.set(i * offset, 0.5, 0); // X-Wert erhöht sich mit jedem Stein
+          if (i % 2 === 0) {
+            clone.rotation.y = Math.PI / 18; // Leicht geneigt für Variationen
+          }
+
+          this.scene.add(clone);
+
+          
+          this.addPhysicsToModel(clone);
+        }
+
+        this.camera.lookAt(5, 0.5, 0); // Kamera auf die mittleren Steine ausrichten
       },
       (xhr) => {
-        console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+        console.log((xhr.loaded / xhr.total) * 100 + '% loaded');
       },
       (error) => {
         console.error('Error loading model:', error);
-      }
-    );
+      });
+
   }
 
-  addPhysicsToModel(domino: any) {
-    const shape = new CANNON.Box(new CANNON.Vec3(1, 1, 0.2));
+
+
+  addPhysicsToModel(domino: Mesh) {
+    const halfExtents = new CANNON.Vec3(0.5, 0.25, 0.1); // Collider-Größe (anpassen falls nötig)
+    const shape = new CANNON.Box(halfExtents);
     const body = new CANNON.Body({
-      mass: 1,  // Masse des Domino
+      mass: 1, // Beweglich
       position: new CANNON.Vec3(domino.position.x, domino.position.y, domino.position.z),
       material: new CANNON.Material(),
     });
     body.addShape(shape);
 
-    domino.userData = { body };  // Speichere den Körper im userData des Modells
     this.world.addBody(body);
+    this.rigidBodies.push({ mesh: domino, body });
+  }
 
-    // Speichern des Mesh und des Körpers in einer Liste, um sie zu aktualisieren
-    this.rigidBodies.push({ mesh: domino, body });  // Achte darauf, dass beide korrekt gespeichert werden
+  applyInitialImpulse() {
+    if (this.rigidBodies.length > 0) {
+      const firstDomino = this.rigidBodies[0].body;
+      firstDomino.applyImpulse(new CANNON.Vec3(2, 0, 0), new CANNON.Vec3(0, 1, 0));
+    }
   }
 
 }
