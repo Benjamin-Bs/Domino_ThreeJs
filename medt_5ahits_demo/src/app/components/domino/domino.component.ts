@@ -1,5 +1,5 @@
 import { AfterViewInit, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
-import { PerspectiveCamera, Scene, WebGLRenderer, Mesh, BoxGeometry, AmbientLight, DirectionalLight, MeshStandardMaterial } from 'three';
+import { PerspectiveCamera, Scene, WebGLRenderer, Mesh, BoxGeometry, AmbientLight, DirectionalLight, MeshStandardMaterial, Box3, Vector3, TextureLoader } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -116,7 +116,7 @@ export class DominoComponent implements OnInit, AfterViewInit {
       new MeshStandardMaterial({ color: 0x808080 })
     );
 
-    groundMesh.position.set(0, -1, 0);
+    groundMesh.position.set(0, -3, 0);
     this.scene.add(groundMesh);
 
   }
@@ -131,24 +131,41 @@ export class DominoComponent implements OnInit, AfterViewInit {
         domino.castShadow = true;
         domino.receiveShadow = true;
 
-        // Steine nacheinander platzieren
-        const offset = 2.0; // Abstand zwischen den Steinen
+        // Lade die Normal Map
+        const textureLoader = new TextureLoader();
+        const normalMap = textureLoader.load('assets/domino_normalMap.png');
+
+        // Überprüfen, ob das Material ein MeshStandardMaterial ist
+        if (domino.material instanceof MeshStandardMaterial) {
+          domino.material.normalMap = normalMap;
+        } else {
+          // Falls das Material nicht MeshStandardMaterial ist, setze es auf ein geeignetes Material
+          const newMaterial = new MeshStandardMaterial({
+            color: '#000000', // Falls du die Farbe beibehalten willst
+            normalMap: normalMap,   // Normal Map zuweisen
+          });
+
+          domino.material = newMaterial; // Material des Steins ersetzen
+        }
+
+        // Berechnung des dynamischen Abstands basierend auf der Größe des Modells
+        const box = new Box3().setFromObject(domino); // Bounding Box des Modells
+        const size = box.getSize(new Vector3());
+        const offset = size.x * 2; // Abstand etwas größer als die Breite des Steins
+
         for (let i = 0; i < 10; i++) {
           const clone = domino.clone() as Mesh;
 
-          // Positionierung der Steine
-          clone.position.set(i * offset, 0.5, 0); // X-Wert erhöht sich mit jedem Stein
-          if (i % 2 === 0) {
-            clone.rotation.y = Math.PI / 18; // Leicht geneigt für Variationen
-          }
+          // Dynamische Positionierung der Steine
+          clone.position.set(i * offset, 0.2, 0); // Berechneter Abstand
+          clone.rotation.y = Math.PI / 2; // Steine aufrecht stellen
 
           this.scene.add(clone);
-
-          
           this.addPhysicsToModel(clone);
         }
 
-        this.camera.lookAt(5, 0.5, 0); // Kamera auf die mittleren Steine ausrichten
+        // Kamera auf die mittleren Steine ausrichten
+        this.camera.lookAt(5, 0.5, 0);
       },
       (xhr) => {
         console.log((xhr.loaded / xhr.total) * 100 + '% loaded');
