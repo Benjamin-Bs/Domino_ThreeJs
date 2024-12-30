@@ -30,7 +30,6 @@ export class DominoComponent implements OnInit, AfterViewInit {
     this.loadModel();
   }
 
-
   private initScene(): void {
     this.scene = new Scene();
     this.camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -86,8 +85,8 @@ export class DominoComponent implements OnInit, AfterViewInit {
 
     const defaultMaterial = new CANNON.Material();
     const contactMaterial = new CANNON.ContactMaterial(defaultMaterial, defaultMaterial, {
-      friction: 0.5,  // Höhere Reibung für Stabilität
-      restitution: 0.2, // Weniger "Springen"
+      friction: 1.2,  // Höhere Reibung für Stabilität
+      restitution: 0.05, // Weniger "Springen"
     });
     this.world.addContactMaterial(contactMaterial);
 
@@ -125,62 +124,56 @@ export class DominoComponent implements OnInit, AfterViewInit {
   loadModel() {
     const loader = new GLTFLoader();
     loader.load(
-      'assets/Blender/domino_stone.gltf',
+      'assets/Blender/domino.gltf',
       (gltf) => {
-        const domino = gltf.scene.children[0] as Mesh; // Erster Stein
-        domino.castShadow = true;
-        domino.receiveShadow = true;
+        const dominoScene = gltf.scene;
 
-        // Lade die Normal Map
-        const textureLoader = new TextureLoader();
-        const normalMap = textureLoader.load('assets/domino_normalMap.png');
+        const tectureLoader = new TextureLoader();
+        const normalMap = tectureLoader.load('assets/NormalMap_domino.png');
 
-        // Überprüfen, ob das Material ein MeshStandardMaterial ist
-        if (domino.material instanceof MeshStandardMaterial) {
-          domino.material.normalMap = normalMap;
-        } else {
-          // Falls das Material nicht MeshStandardMaterial ist, setze es auf ein geeignetes Material
-          const newMaterial = new MeshStandardMaterial({
-            color: '#000000', // Falls du die Farbe beibehalten willst
-            normalMap: normalMap,   // Normal Map zuweisen
-          });
+        dominoScene.traverse((child) => {
+          if (child instanceof Mesh) {
 
-          domino.material = newMaterial; // Material des Steins ersetzen
-        }
+            child.material = new MeshStandardMaterial({
+              color: 0xffffff,
+              normalMap: normalMap,
+              roughness: 0.5,
+              metalness: 0.1,
+            });
 
-        // Berechnung des dynamischen Abstands basierend auf der Größe des Modells
-        const box = new Box3().setFromObject(domino); // Bounding Box des Modells
-        const size = box.getSize(new Vector3());
-        const offset = size.x * 2; // Abstand etwas größer als die Breite des Steins
+            child.castShadow = true;
+            child.receiveShadow = true;
 
-        for (let i = 0; i < 10; i++) {
-          const clone = domino.clone() as Mesh;
+            // Physik für jeden einzelnen Stein hinzufügen
+            this.addPhysicsToModel(child);
+          }
+        });
 
-          // Dynamische Positionierung der Steine
-          clone.position.set(i * offset, 0.2, 0); // Berechneter Abstand
-          clone.rotation.y = Math.PI / 2; // Steine aufrecht stellen
+        // Szene hinzufügen
+        this.scene.add(dominoScene);
 
-          this.scene.add(clone);
-          this.addPhysicsToModel(clone);
-        }
-
-        // Kamera auf die mittleren Steine ausrichten
-        this.camera.lookAt(5, 0.5, 0);
+        // Kamera auf die Szene ausrichten
+        this.camera.lookAt(0, 0, 0);
       },
       (xhr) => {
         console.log((xhr.loaded / xhr.total) * 100 + '% loaded');
       },
       (error) => {
         console.error('Error loading model:', error);
-      });
-
+      }
+    );
   }
 
 
+  addPhysicsToModel(domino: Mesh, isFirst: boolean = false) {
+    const boundingBox = new Box3().setFromObject(domino); // Automatische Größe berechnen
+    const size = new CANNON.Vec3(
+      (boundingBox.max.x - boundingBox.min.x) / 2,
+      (boundingBox.max.y - boundingBox.min.y) / 2,
+      (boundingBox.max.z - boundingBox.min.z) / 2
+    );
 
-  addPhysicsToModel(domino: Mesh) {
-    const halfExtents = new CANNON.Vec3(0.5, 0.25, 0.1); // Collider-Größe (anpassen falls nötig)
-    const shape = new CANNON.Box(halfExtents);
+    const shape = new CANNON.Box(size);
     const body = new CANNON.Body({
       mass: 1, // Beweglich
       position: new CANNON.Vec3(domino.position.x, domino.position.y, domino.position.z),
@@ -188,8 +181,21 @@ export class DominoComponent implements OnInit, AfterViewInit {
     });
     body.addShape(shape);
 
+    if (isFirst) {
+      // Erster Stein erhält eine Initialbewegung
+      body.velocity.set(0, 0, -2);
+    }
+
     this.world.addBody(body);
     this.rigidBodies.push({ mesh: domino, body });
+  }
+
+  startDominoFall() {
+    if (this.rigidBodies.length > 0) {
+      const firstDomino = this.rigidBodies[0].body;
+      // Impuls anwenden, um den Stein umzuwerfen
+      firstDomino.applyImpulse(new CANNON.Vec3(-2, 0, 0), new CANNON.Vec3(0, 1, 0));
+    }
   }
 
   applyInitialImpulse() {
