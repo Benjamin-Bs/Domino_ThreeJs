@@ -81,12 +81,12 @@ export class DominoComponent implements OnInit, AfterViewInit {
 
   initPhysics() {
     this.world = new CANNON.World();
-    this.world.gravity.set(0, -9.8, 0); // Schwerkraft
+    this.world.gravity.set(0, -9.81, 0); // Schwerkraft   15 anstatt von 9.81
 
     const defaultMaterial = new CANNON.Material();
     const contactMaterial = new CANNON.ContactMaterial(defaultMaterial, defaultMaterial, {
-      friction: 1.2,  // Höhere Reibung für Stabilität
-      restitution: 0.05, // Weniger "Springen"
+      friction: 0.05,  // Höhere Reibung für Stabilität
+      restitution: 1, //  "Springen"
     });
     this.world.addContactMaterial(contactMaterial);
 
@@ -105,6 +105,7 @@ export class DominoComponent implements OnInit, AfterViewInit {
       mass: 0,
       material: material,
     });
+
     groundBody.addShape(groundShape);
     groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // Ebene horizontal drehen
     groundBody.position.set(0, -1, 0);
@@ -115,11 +116,12 @@ export class DominoComponent implements OnInit, AfterViewInit {
       new MeshStandardMaterial({ color: 0x808080 })
     );
 
+    groundMesh.receiveShadow = true;
+
     groundMesh.position.set(0, -3, 0);
     this.scene.add(groundMesh);
 
   }
-
 
   loadModel() {
     const loader = new GLTFLoader();
@@ -129,7 +131,7 @@ export class DominoComponent implements OnInit, AfterViewInit {
         const dominoScene = gltf.scene;
 
         const tectureLoader = new TextureLoader();
-        const normalMap = tectureLoader.load('assets/NormalMap_domino.png');
+        const normalMap = tectureLoader.load('assets/domino_normalMap.png');
 
         dominoScene.traverse((child) => {
           if (child instanceof Mesh) {
@@ -144,15 +146,14 @@ export class DominoComponent implements OnInit, AfterViewInit {
             child.castShadow = true;
             child.receiveShadow = true;
 
+            child.material.color.set(0xffff00);
+
             // Physik für jeden einzelnen Stein hinzufügen
             this.addPhysicsToModel(child);
           }
         });
 
-        // Szene hinzufügen
         this.scene.add(dominoScene);
-
-        // Kamera auf die Szene ausrichten
         this.camera.lookAt(0, 0, 0);
       },
       (xhr) => {
@@ -175,10 +176,19 @@ export class DominoComponent implements OnInit, AfterViewInit {
 
     const shape = new CANNON.Box(size);
     const body = new CANNON.Body({
-      mass: 1, // Beweglich
+      mass: 0.5, // Beweglich
       position: new CANNON.Vec3(domino.position.x, domino.position.y, domino.position.z),
       material: new CANNON.Material(),
     });
+
+    // const size = new CANNON.Vec3(0.4, 0.075, 0.85); // Halbe Maße des Dominosteins
+    // const shape = new CANNON.Box(size);
+    // const body = new CANNON.Body({
+    //   mass: 0.3, // Beweglich
+    //   position: new CANNON.Vec3(domino.position.x, domino.position.y, domino.position.z),
+    //   material: new CANNON.Material(),
+    // });
+
     body.addShape(shape);
 
     if (isFirst) {
@@ -194,15 +204,15 @@ export class DominoComponent implements OnInit, AfterViewInit {
     if (this.rigidBodies.length > 0) {
       const firstDomino = this.rigidBodies[0].body;
       // Impuls anwenden, um den Stein umzuwerfen
-      firstDomino.applyImpulse(new CANNON.Vec3(-2, 0, 0), new CANNON.Vec3(0, 1, 0));
+      firstDomino.applyImpulse(new CANNON.Vec3(-5, 0, 0), new CANNON.Vec3(0, 1, 0));
     }
   }
 
-  applyInitialImpulse() {
-    if (this.rigidBodies.length > 0) {
-      const firstDomino = this.rigidBodies[0].body;
-      firstDomino.applyImpulse(new CANNON.Vec3(2, 0, 0), new CANNON.Vec3(0, 1, 0));
-    }
-  }
+  // applyInitialImpulse() {
+  //   if (this.rigidBodies.length > 0) {
+  //     const firstDomino = this.rigidBodies[0].body;
+  //     firstDomino.applyImpulse(new CANNON.Vec3(2, 0, 0), new CANNON.Vec3(0, 1, 0));
+  //   }
+  //}
 
 }
