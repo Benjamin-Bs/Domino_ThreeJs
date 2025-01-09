@@ -18,6 +18,7 @@ export class DominoComponent implements OnInit, AfterViewInit {
   camera!: PerspectiveCamera;
   renderer!: WebGLRenderer;
   world!: CANNON.World;
+  dominoMaterial!: CANNON.Material;
   rigidBodies: { mesh: Mesh; body: CANNON.Body }[] = [];
 
   constructor() { }
@@ -38,7 +39,6 @@ export class DominoComponent implements OnInit, AfterViewInit {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
 
-    // Licht hinzufügen
     const light = new AmbientLight(0xffffff, 0.8); // Umgebungslicht
     this.scene.add(light);
 
@@ -47,7 +47,6 @@ export class DominoComponent implements OnInit, AfterViewInit {
     directionalLight.castShadow = true;
     this.scene.add(directionalLight);
 
-    // OrbitControls
     const controls = new OrbitControls(this.camera, this.renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
@@ -55,17 +54,14 @@ export class DominoComponent implements OnInit, AfterViewInit {
     controls.minDistance = 5;
     controls.maxDistance = 50;
 
-    // Kamera-Position
     this.camera.position.set(8, 8, 15);
     this.camera.lookAt(0, 0, 0);
 
-    // Animation Loop
     this.renderer.setAnimationLoop(() => {
       controls.update();
       this.animate();
     });
   }
-
 
   animate() {
     this.world.step(1 / 60); // Physik-Update
@@ -78,23 +74,29 @@ export class DominoComponent implements OnInit, AfterViewInit {
     this.renderer.render(this.scene, this.camera);
   }
 
-
   initPhysics() {
     this.world = new CANNON.World();
-    this.world.gravity.set(0, -9.81, 0); // Schwerkraft   15 anstatt von 9.81
+    this.world.gravity.set(0, -9.81, 0); // Schwerkraft
 
-    const defaultMaterial = new CANNON.Material();
-    const contactMaterial = new CANNON.ContactMaterial(defaultMaterial, defaultMaterial, {
-      friction: 0.05,  // Höhere Reibung für Stabilität
-      restitution: 1, //  "Springen"
+    const solver = new CANNON.GSSolver();
+    solver.iterations = 10; // Iterationen festlegen
+    solver.tolerance = 0.001; // Toleranz für präzisere Berechnungen
+    this.world.solver = solver;
+
+    // Materialien definieren
+    const defaultMaterial = new CANNON.Material("default");
+    this.dominoMaterial = new CANNON.Material("domino");
+
+    const dominoContactMaterial = new CANNON.ContactMaterial(this.dominoMaterial, this.dominoMaterial, {
+      friction: 0.01, // Niedrige Reibung
+      restitution: 0.2, // Leichte Elastizität
     });
-    this.world.addContactMaterial(contactMaterial);
 
+    this.world.addContactMaterial(dominoContactMaterial);
     this.addGround(defaultMaterial);
   }
 
   addGround(material: CANNON.Material) {
-
     if (!this.scene) {
       console.error('Scene is not initialized');
       return;
@@ -117,10 +119,8 @@ export class DominoComponent implements OnInit, AfterViewInit {
     );
 
     groundMesh.receiveShadow = true;
-
     groundMesh.position.set(0, -3, 0);
     this.scene.add(groundMesh);
-
   }
 
   loadModel() {
@@ -135,7 +135,6 @@ export class DominoComponent implements OnInit, AfterViewInit {
 
         dominoScene.traverse((child) => {
           if (child instanceof Mesh) {
-
             child.material = new MeshStandardMaterial({
               color: 0xffffff,
               normalMap: normalMap,
@@ -146,9 +145,6 @@ export class DominoComponent implements OnInit, AfterViewInit {
             child.castShadow = true;
             child.receiveShadow = true;
 
-            child.material.color.set(0xffff00);
-
-            // Physik für jeden einzelnen Stein hinzufügen
             this.addPhysicsToModel(child);
           }
         });
@@ -165,9 +161,9 @@ export class DominoComponent implements OnInit, AfterViewInit {
     );
   }
 
-
   addPhysicsToModel(domino: Mesh, isFirst: boolean = false) {
-    const boundingBox = new Box3().setFromObject(domino); // Automatische Größe berechnen
+    // Berechnung der Größe des Steines
+    const boundingBox = new Box3().setFromObject(domino);
     const size = new CANNON.Vec3(
       (boundingBox.max.x - boundingBox.min.x) / 2,
       (boundingBox.max.y - boundingBox.min.y) / 2,
@@ -176,23 +172,16 @@ export class DominoComponent implements OnInit, AfterViewInit {
 
     const shape = new CANNON.Box(size);
     const body = new CANNON.Body({
-      mass: 0.5, // Beweglich
+      mass: 0.5,
       position: new CANNON.Vec3(domino.position.x, domino.position.y, domino.position.z),
-      material: new CANNON.Material(),
+      material: this.dominoMaterial,
     });
 
-    // const size = new CANNON.Vec3(0.4, 0.075, 0.85); // Halbe Maße des Dominosteins
-    // const shape = new CANNON.Box(size);
-    // const body = new CANNON.Body({
-    //   mass: 0.3, // Beweglich
-    //   position: new CANNON.Vec3(domino.position.x, domino.position.y, domino.position.z),
-    //   material: new CANNON.Material(),
-    // });
-
     body.addShape(shape);
+    body.linearDamping = 0.01;
+    body.angularDamping = 0.01;
 
     if (isFirst) {
-      // Erster Stein erhält eine Initialbewegung
       body.velocity.set(0, 0, -2);
     }
 
@@ -203,16 +192,7 @@ export class DominoComponent implements OnInit, AfterViewInit {
   startDominoFall() {
     if (this.rigidBodies.length > 0) {
       const firstDomino = this.rigidBodies[0].body;
-      // Impuls anwenden, um den Stein umzuwerfen
       firstDomino.applyImpulse(new CANNON.Vec3(-5, 0, 0), new CANNON.Vec3(0, 1, 0));
     }
   }
-
-  // applyInitialImpulse() {
-  //   if (this.rigidBodies.length > 0) {
-  //     const firstDomino = this.rigidBodies[0].body;
-  //     firstDomino.applyImpulse(new CANNON.Vec3(2, 0, 0), new CANNON.Vec3(0, 1, 0));
-  //   }
-  //}
-
 }
