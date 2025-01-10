@@ -3,7 +3,7 @@ import { PerspectiveCamera, Scene, WebGLRenderer, Mesh, BoxGeometry, AmbientLigh
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-
+import { HighmapComponent } from '../highmap/highmap.component';
 
 @Component({
   selector: 'app-domino',
@@ -13,6 +13,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 export class DominoComponent implements OnInit, AfterViewInit {
 
   @ViewChild('domino') canvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChild(HighmapComponent) heightmapComponent!: HighmapComponent;
 
   scene!: Scene;
   camera!: PerspectiveCamera;
@@ -20,6 +21,7 @@ export class DominoComponent implements OnInit, AfterViewInit {
   world!: CANNON.World;
   dominoMaterial!: CANNON.Material;
   rigidBodies: { mesh: Mesh; body: CANNON.Body }[] = [];
+  terrain!: Mesh;
 
   constructor() { }
 
@@ -29,6 +31,8 @@ export class DominoComponent implements OnInit, AfterViewInit {
     this.initScene();
     this.initPhysics();
     this.loadModel();
+
+    this.heightmapComponent.loadHeightmap('assets/heightmap.png'); // Load heightmap
   }
 
   private initScene(): void {
@@ -39,6 +43,7 @@ export class DominoComponent implements OnInit, AfterViewInit {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
 
+    // Licht
     const light = new AmbientLight(0xffffff, 0.8); // Umgebungslicht
     this.scene.add(light);
 
@@ -47,6 +52,7 @@ export class DominoComponent implements OnInit, AfterViewInit {
     directionalLight.castShadow = true;
     this.scene.add(directionalLight);
 
+    // OrbitControls
     const controls = new OrbitControls(this.camera, this.renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
@@ -102,6 +108,10 @@ export class DominoComponent implements OnInit, AfterViewInit {
       return;
     }
 
+    // TODO: NormalMap für Boden hinzufügen 
+    const tectureLoaderGround = new TextureLoader();
+    const groundTexture = tectureLoaderGround.load('assets/ground_normalMap.jpg');
+
     const groundShape = new CANNON.Plane();
     const groundBody = new CANNON.Body({
       mass: 0,
@@ -115,7 +125,10 @@ export class DominoComponent implements OnInit, AfterViewInit {
 
     const groundMesh = new Mesh(
       new BoxGeometry(50, 1, 50),
-      new MeshStandardMaterial({ color: 0x808080 })
+      new MeshStandardMaterial({ 
+        color: 0x808080,
+        // normalMap: groundTexture
+      })
     );
 
     groundMesh.receiveShadow = true;
@@ -144,6 +157,8 @@ export class DominoComponent implements OnInit, AfterViewInit {
 
             child.castShadow = true;
             child.receiveShadow = true;
+
+            child.material.color.set(0xffff00);
 
             this.addPhysicsToModel(child);
           }
@@ -195,4 +210,18 @@ export class DominoComponent implements OnInit, AfterViewInit {
       firstDomino.applyImpulse(new CANNON.Vec3(-5, 0, 0), new CANNON.Vec3(0, 1, 0));
     }
   }
+
+  // Receives terrain mesh from HeightmapComponent
+  onTerrainCreated(terrain: Mesh) {
+    this.terrain = terrain;
+    this.terrain.receiveShadow = true; // Schatten empfangen
+    // this.terrain.castShadow = false; //Selber keinen Schatten werfen
+
+    // Set terrain position
+    this.terrain.position.set(30, -1, 0);
+
+    this.scene.add(this.terrain); // Add terrain to the scene
+  }
+
+
 }
