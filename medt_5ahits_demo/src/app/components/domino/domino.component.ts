@@ -1,5 +1,5 @@
 import { AfterViewInit, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
-import { PerspectiveCamera, Scene, WebGLRenderer, Mesh, BoxGeometry, AmbientLight, DirectionalLight, MeshStandardMaterial, Box3, Vector3, TextureLoader } from 'three';
+import { PerspectiveCamera, Scene, WebGLRenderer, Mesh, BoxGeometry, AmbientLight, DirectionalLight, MeshStandardMaterial, Box3, Vector3, TextureLoader, RepeatWrapping } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -125,7 +125,7 @@ export class DominoComponent implements OnInit, AfterViewInit {
 
     const groundMesh = new Mesh(
       new BoxGeometry(50, 1, 50),
-      new MeshStandardMaterial({ 
+      new MeshStandardMaterial({
         color: 0x808080,
         // normalMap: groundTexture
       })
@@ -143,8 +143,14 @@ export class DominoComponent implements OnInit, AfterViewInit {
       (gltf) => {
         const dominoScene = gltf.scene;
 
-        const tectureLoader = new TextureLoader();
-        const normalMap = tectureLoader.load('assets/domino_normalMap.png');
+        const loader = new TextureLoader();
+        const normalMap = loader.load('assets/domino_normalMap.png');
+
+        // Ändere die Texturkoordinaten der Normal Map
+        normalMap.wrapS = normalMap.wrapT = RepeatWrapping;
+        normalMap.repeat.set(4, 5.1); // Skaliere die Normal Map
+
+        normalMap.rotation = Math.PI / 2; // 90 Grad drehen
 
         dominoScene.traverse((child) => {
           if (child instanceof Mesh) {
@@ -184,14 +190,14 @@ export class DominoComponent implements OnInit, AfterViewInit {
       (boundingBox.max.y - boundingBox.min.y) / 2,
       (boundingBox.max.z - boundingBox.min.z) / 2
     );
-  
+
     // Position des Domino-Objekts
     const initialPosition = new CANNON.Vec3(
       domino.position.x,
       domino.position.y,
       domino.position.z
     );
-  
+
     // Erstellen des CANNON-Box-Shape
     const shape = new CANNON.Box(size);
     const body = new CANNON.Body({
@@ -199,20 +205,20 @@ export class DominoComponent implements OnInit, AfterViewInit {
       position: initialPosition,
       material: this.dominoMaterial,
     });
-  
+
     body.addShape(shape);
     body.linearDamping = 0.01;
     body.angularDamping = 0.01;
-  
+
     if (isFirst) {
       // Zunächst eine Impulsanwendung, um das erste Domino zu starten
       body.velocity.set(0, 0, -2);
     }
-  
+
     this.world.addBody(body);
     this.rigidBodies.push({ mesh: domino, body });
   }
-  
+
 
   startDominoFall() {
     if (this.rigidBodies.length > 0) {
