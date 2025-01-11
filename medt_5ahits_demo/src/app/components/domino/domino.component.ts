@@ -139,7 +139,7 @@ export class DominoComponent implements OnInit, AfterViewInit {
   loadModel() {
     const loader = new GLTFLoader();
     loader.load(
-      'assets/Blender/domino.gltf',
+      'assets/Blender/domino_test2.gltf',
       (gltf) => {
         const dominoScene = gltf.scene;
 
@@ -177,32 +177,42 @@ export class DominoComponent implements OnInit, AfterViewInit {
   }
 
   addPhysicsToModel(domino: Mesh, isFirst: boolean = false) {
-    // Berechnung der Größe des Steines
+    // Berechnung der Größe des Steines durch die BoundingBox
     const boundingBox = new Box3().setFromObject(domino);
     const size = new CANNON.Vec3(
       (boundingBox.max.x - boundingBox.min.x) / 2,
       (boundingBox.max.y - boundingBox.min.y) / 2,
       (boundingBox.max.z - boundingBox.min.z) / 2
     );
-
+  
+    // Position des Domino-Objekts
+    const initialPosition = new CANNON.Vec3(
+      domino.position.x,
+      domino.position.y,
+      domino.position.z
+    );
+  
+    // Erstellen des CANNON-Box-Shape
     const shape = new CANNON.Box(size);
     const body = new CANNON.Body({
       mass: 0.5,
-      position: new CANNON.Vec3(domino.position.x, domino.position.y, domino.position.z),
+      position: initialPosition,
       material: this.dominoMaterial,
     });
-
+  
     body.addShape(shape);
     body.linearDamping = 0.01;
     body.angularDamping = 0.01;
-
+  
     if (isFirst) {
+      // Zunächst eine Impulsanwendung, um das erste Domino zu starten
       body.velocity.set(0, 0, -2);
     }
-
+  
     this.world.addBody(body);
     this.rigidBodies.push({ mesh: domino, body });
   }
+  
 
   startDominoFall() {
     if (this.rigidBodies.length > 0) {
