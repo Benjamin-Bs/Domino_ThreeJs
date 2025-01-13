@@ -28,7 +28,7 @@ Before running the project, ensure you have the following installed:
 1. **Clone the Repository**  
    ```bash
    git clone https://github.com/Benjamin-Bs/Domino_ThreeJs.git
-   cd Domino_ThreeJs
+   cd Domino_ThreeJs\medt_5ahits_demo\
    ```  
 
 2. **Install Dependencies**  
